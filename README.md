@@ -12,27 +12,27 @@ To explore the feasibility of real-time handwritten digit classfication using BN
 - BatchNorm reflected threshold correction
 - Testbench simulation accuracy: **73.45%**
 
-## 구조
+## Structure
 1. PyTorch BNN Training
 2. Weight/Threshold Export (.txt)
 3. Verilog-based Inference (FC1 -> FC2 -> Argmax)
 4. Simulation Testbench
 
-## 주요 파일
+## File Description
 - `BNN.py` : PyTorch-based BNN training code
 - `fc1_weight_bin.txt` : FC1 layer binarization weight
 - `tb_BNN.v` : Verilog testbench (SystemVerilog)
 - `accuracy_log.txt` : Cumulative accuracy record during testbench simulation
 
-## 성능
+## Performance
 - PyTorch training accuracy : **86.94%**
 - Verilog simulation accuracy : **73.45%**
 - dataset : MNIST (test-dataset 10000)
 
-## 결과 예시
-![Verilog Accuracy Graph](images/accuracy_graph.png)
-![Comparison Graph](images/comparison_graph.png)
-![PyTorch Train Graph](train_graph.png)
+## Result Graph
+![Verilog Accuracy Graph](Images/accuracy_graph.png)
+![Comparison Graph](Images/comparison_graph.png)
+![PyTorch Train Graph](Images/train_graph.png)
 
 ## License
 MIT License
