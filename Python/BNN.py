@@ -220,7 +220,7 @@ def test_verilog_style(model, loader, criterion, device):
         for images, labels in loader:
             images, labels = images.to(device), labels.to(device)
             
-            outputs = model(images)
+            outputs = model(images).float()
             loss = criterion(outputs, labels)
             total_loss += loss.item() * labels.size(0)
             predicted = outputs.argmax(dim=1)
@@ -285,14 +285,14 @@ eps = bn.eps
 
 correction = (-beta / (gamma + 1e-5)) * np.sqrt(var + eps)
 adjusted_threshold = (
-    raw_threshold.numpy() + correction
+    raw_threshold.cpu().numpy() + correction
 )
 
 thresholds = np.clip(np.round(adjusted_threshold), 0, 784).astype(np.int32)
 threshold_tensor = torch.tensor(thresholds, dtype=torch.int32, device=device)
 
 verilog_model = VerilogBNN(fc1_w_bin, fc2_w_bin, threshold_tensor).to(device)
-test_verilog_style(verilog_model)
+test_verilog_style(verilog_model, test_loader, criterion, device)
 
 
 ###############
