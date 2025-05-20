@@ -6,7 +6,7 @@ accuracies = [86.94, 73.47, 73.45]
 plt.bar(models, accuracies, color=['skyblue', 'orange', 'green'])
 plt.ylim(0, 100)
 plt.ylabel('Accuracy (%)')
-plt.title('Accuracy Comparison of Float / BNN / Verilog')
+plt.title("Accuracy Comparison of Float / BNN / Verilog, fontsize=14, weight='bold'")
 for i, acc in enumerate(accuracies):
     plt.text(i, acc + 1, f'{acc:.2f}%', ha='center')
 

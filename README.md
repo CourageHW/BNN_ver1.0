@@ -41,8 +41,8 @@ Explore the feasibility of real-time handwritten digit classfication using BNNs 
 MIT License
 
 ## Developed by.
-**Jo Yonggi**
-2nd-year Undergraduate
-Department of Aviation Electronics and Information Engineering
-Korea Aerospace University
-GitHub: [@CourageHW](https://github.com/CourageHW)
+**Jo Yonggi**  
+2nd-year Undergraduate  
+Department of Aviation Electronics and Information Engineering  
+Korea Aerospace University  
+GitHub: [@CourageHW](https://github.com/CourageHW)  
