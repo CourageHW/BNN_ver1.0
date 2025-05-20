@@ -1,27 +1,44 @@
-# BNN_ver1.0
+# Binarized Neural Network on FPGA
 
-> MNIST dataset | FUlly-parallel inference | Threshold tuning | Verilog-compatible pipeline
+FPGA-based BNN implementation project
+Transplant the BNN model learned with PyTorch to Verilog to classify MNIST data
 
-## 🎯 Final Results
-- PyTorch Float Accuracy: ** ~87.0%**
-- Verilog-style Inference Accuracy: **~73.4%**
-- Bit-level hardware threshold tuning using median/statistics
+## 🎯 Purpose
+To explore the feasibility of real-time handwritten digit classfication using BNNs on FPGA
 
-## 📁 Project Structure
-- `verilog/`     : RTL module (`fc1.v`, `argmax.v`, ...)
-- `python/`      : BNN training & threshold extraction scripts
-- `verilog/data` : Binarized weights & input
-- `log/`         : Accuracy logs
-- `img/`         : Accuracy graph comparing PyTorch & Verilog
+## Highlight
+- Training Binarization Models for PyTorch → Verilog Porting
+- FC Layer-based Inference Pipeline (XNOR + Popcount + Threshold)
+- BatchNorm reflected threshold correction
+- Testbench simulation accuracy: **73.45%**
 
-## 🛠️ Tools Used
-- Vivado / GTKWave
-- PyTorch
-- Verilog / SystemVerilog
+## 구조
+1. PyTorch BNN Training
+2. Weight/Threshold Export (.txt)
+3. Verilog-based Inference (FC1 -> FC2 -> Argmax)
+4. Simulation Testbench
 
-## 📌 How to Run
+## 주요 파일
+- `BNN.py` : PyTorch-based BNN training code
+- `fc1_weight_bin.txt` : FC1 layer binarization weight
+- `tb_BNN.v` : Verilog testbench (SystemVerilog)
+- `accuracy_log.txt` : Cumulative accuracy record during testbench simulation
 
+## 성능
+- PyTorch training accuracy : **86.94%**
+- Verilog simulation accuracy : **73.45%**
+- dataset : MNIST (test-dataset 10000)
 
-### 🧠 Train Model
-```bash
-python BNN.py
+## 결과 예시
+![Verilog Accuracy Graph](images/accuracy_graph.png)
+![Comparison Graph](images/comparison_graph.png)
+![PyTorch Train Graph](train_graph.png)
+
+## License
+MIT License
+
+## Developed by.
+- Jo Yonggi
+- Korea Aerospace Univ. 2nd Grade
+- Department of Aviation Electronics and Information Engineering
+- GitHub: [@CourageHW](https://github.com/CourageHW)
