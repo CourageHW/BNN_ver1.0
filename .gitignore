@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pkl
+*.pt
+
+# Verilog simulation
+*.vcd
+*.vvp
+*.out
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# 기타
+*.bin
+*.npy
+*.txt~
+
