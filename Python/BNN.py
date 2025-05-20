@@ -1,15 +1,12 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
 import numpy as np
 import matplotlib.pyplot as plt
-
 import random
-
+from torch.utils.data import DataLoader
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -18,14 +15,12 @@ def set_seed(seed):
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
 
-
 set_seed(42)
 
-
-# ------------------------------
-# ✅ Dataset
-# ------------------------------
-# 훈련용
+###########
+# Dataset #
+###########
+# Train Transform
 train_transform = transforms.Compose(
     [
         transforms.RandomRotation(5),
@@ -35,44 +30,54 @@ train_transform = transforms.Compose(
     ]
 )
 
-# 테스트용
+# Test Transform
 test_transform = transforms.Compose(
-    [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+    [
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+    ]
 )
 
+# Train Dataset
 train_dataset = torchvision.datasets.MNIST(
-    root="./data", train=True, download=True, transform=train_transform
+    root='./data',
+    train=True,
+    download=True,
+    transform=train_transform
 )
 
+# Test Dataset
 test_dataset = torchvision.datasets.MNIST(
-    root="./data", train=False, download=True, transform=test_transform
+    root="./data",
+    train=False,
+    download=True,
+    transform=test_transform
 )
+
+# Loader
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-# ------------------------------
-# ✅ Binarization Function (STE)
-# ------------------------------
+##############################
+# Binariation Function (STE) #
+##############################
 class BinaryActivation(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input):
         return input.sign()
-
+    
     @staticmethod
     def backward(ctx, grad_output):
         return grad_output.clone()
-
-
+    
 binarize = BinaryActivation.apply
 
-
-# ------------------------------
-# ✅ BNN for Training (float weight)
-# ------------------------------
-class TrainableBNN(nn.Module):
+###################################
+# BNN for Training (Float weight) #
+###################################
+class BNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.fc1 = nn.Linear(784, 256, bias=True)
@@ -84,20 +89,19 @@ class TrainableBNN(nn.Module):
         x = binarize(x)
         x = self.fc1(x)
         x = self.bn1(x)
-        x = (x >= 0).float()  # Threshold at 0 (binary output)
+        x = (x >= 0).float()
         x = self.fc2(x)
         return x
-
-
-# ------------------------------
-# ✅ Verilog-compatible Inference Model
-# ------------------------------
-class VerilogCompatibleBNN(nn.Module):
+    
+###############################
+# BNN for Inference (Verilog) #
+###############################
+class VerilogBNN(nn.Module):
     def __init__(self, fc1_weight_bin, fc2_weight_bin, threshold):
         super().__init__()
         self.fc1_weight = fc1_weight_bin
         self.fc2_weight = fc2_weight_bin
-        self.threshold = threshold
+        self.threshold  = threshold
 
     def forward(self, x):
         x = x.view(x.size(0), -1)
@@ -108,11 +112,10 @@ class VerilogCompatibleBNN(nn.Module):
         xnor2 = 1 - (act1.unsqueeze(1) ^ self.fc2_weight.unsqueeze(0))
         pc2 = xnor2.sum(dim=2)
         return pc2
-
-
-# ------------------------------
-# ✅ Training & Evaluation
-# ------------------------------
+    
+#############
+# Scheduler #
+#############
 class GradualWarmupScheduler(torch.optim.lr_scheduler._LRScheduler):
     def __init__(self, optimizer, multiplier, total_epoch, after_scheduler=None):
         self.multiplier = multiplier
@@ -148,11 +151,27 @@ class GradualWarmupScheduler(torch.optim.lr_scheduler._LRScheduler):
             return super().step(epoch)
 
 
+#########
+# SetUp #
+#########
+model = BNN().to(device)
+criterion = nn.CrossEntropyLoss(label_smoothing=0.01)
+optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-5)
+cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=70)
+scheduler = GradualWarmupScheduler(optimizer, multiplier=2.0, total_epoch=10, after_scheduler=cosine_scheduler)
+
+train_losses = []
+train_accuracies = []
+test_losses = []
+test_accuracies = []
+
+######################
+# Training & Testing #
+######################      
 def train(model, loader, optimizer, criterion, device):
     model.train()
-    correct = 0
-    total = 0
-    total_loss = 0
+    correct, total, total_loss = 0, 0, 0
+
     for images, labels in loader:
         images, labels = images.to(device), labels.to(device)
 
@@ -172,75 +191,64 @@ def train(model, loader, optimizer, criterion, device):
     train_accuracies.append(acc)
     return acc, avg_loss
 
-
 def test(model, loader, criterion, device):
     model.eval()
-    correct = 0
-    total = 0
-    total_loss = 0
+    correct, total, total_loss = 0, 0, 0
+
     with torch.no_grad():
         for images, labels in loader:
             images, labels = images.to(device), labels.to(device)
+            
             outputs = model(images)
             loss = criterion(outputs, labels)
             total_loss += loss.item() * labels.size(0)
             predicted = outputs.argmax(dim=1)
             correct += (predicted == labels).sum().item()
             total += labels.size(0)
+
     avg_loss = total_loss / total
     acc = 100 * correct / total
-    val_losses.append(avg_loss)
-    val_accuracies.append(acc)
+    test_losses.append(avg_loss)
+    test_accuracies.append(acc)
     return acc, avg_loss
 
-
-def test_verilog_style(model):
+def test_verilog_style(model, loader, criterion, device):
     model.eval()
-    correct = 0
+    correct, total, total_loss = 0, 0, 0
+
     with torch.no_grad():
-        for images, labels in test_loader:
+        for images, labels in loader:
             images, labels = images.to(device), labels.to(device)
+            
             outputs = model(images)
-            pred = outputs.argmax(dim=1)
-            correct += (pred == labels).sum().item()
-    acc = correct / len(test_loader.dataset) * 100
-    print(f"[Verilog-style 추론] Accuracy: {acc:.2f}%")
+            loss = criterion(outputs, labels)
+            total_loss += loss.item() * labels.size(0)
+            predicted = outputs.argmax(dim=1)
+            correct += (predicted == labels).sum().item()
+            total += labels.size(0)
 
+    avg_loss = total_loss / total
+    acc = 100 * correct / total
+    print(f"[Verilog-Style] Accuracy: {acc:.2f}% | Loss: {avg_loss:.4f}")
 
-# ------------------------------
-# ✅ Main
-# ------------------------------
-model = TrainableBNN().to(device)
-
-criterion = nn.CrossEntropyLoss(label_smoothing=0.01)
-optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-5)
-cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=70)
-scheduler = GradualWarmupScheduler(
-    optimizer, multiplier=2.0, total_epoch=10, after_scheduler=cosine_scheduler
-)
-
-train_losses = []
-train_accuracies = []
-val_losses = []
-val_accuracies = []
-
+########
+# Main #
+########
 epochs = 50
-early_stop_patience = 8  # 8 epoch 동안 개선 없으면 stop
+early_stop_patience = 8
 best_loss = float("inf")
 no_improve_count = 0
 
 for epoch in range(1, epochs + 1):
     train_acc, train_loss = train(model, train_loader, optimizer, criterion, device)
     scheduler.step()
-    val_acc, val_loss = test(model, test_loader, criterion, device)  # 중간 검증
+    test_acc, test_loss = test(model, test_loader, criterion, device)
 
     print(
-        f"[Epoch {epoch}] Train Acc: {train_acc:.2f}%, Loss: {train_loss:.4f} | Val Acc: {val_acc:.2f}%, Loss: {val_loss:.4f}"
-    )
-
-    # Early stopping 조건은 보통 검증 손실(val_loss) 기준으로 함
-    if val_loss < best_loss - 1e-4:
-        best_loss = val_loss
+        f"[Epoch {epoch}] Train Acc: {train_acc:.2f}%, Loss: {train_loss:.4f} | Test Acc: {test_acc:.2f}%, Loss: {test_loss:.4f}")
+    
+    if test_loss < best_loss - 1e-4:
+        best_loss = test_loss
         no_improve_count = 0
     else:
         no_improve_count += 1
@@ -249,65 +257,53 @@ for epoch in range(1, epochs + 1):
         print(f"🛑 Early stopping at epoch {epoch+1}")
         break
 
-# 클래스 복사
+######################
+# Test Verilog Style #
+######################
 fc1_w_bin = (model.fc1.weight.data.clone().sign() >= 0).to(device)
-fc2_w_bin = (model.fc2.weight.data.clone().sign() >= 0).int().to(device)
-thresh = torch.full(
-    (256,), 392, dtype=torch.int32, device=device
-)  # fixed threshold for now
+fc2_w_bin = (model.fc2.weight.data.clone().sign() >= 0).to(device)
+pc_all = []
 
-verilog_model = VerilogCompatibleBNN(fc1_w_bin, fc2_w_bin, thresh).to(device)
+with torch.no_grad():
+    for images, _ in test_loader:
+        x = images.view(images.size(0), -1).to(device)
+        x_bin = (x >= 0).int()
+        xnor = 1 - (x_bin.unsqueeze(1) ^ fc1_w_bin.unsqueeze(0))
+        pc = xnor.sum(dim=2)
+        pc_all.append(pc)
+
+pc_all = torch.cat(pc_all, dim=0)
+
+raw_threshold = pc_all.median(dim=0).values.float()
+
+bn = model.bn1
+gamma = bn.weight.detach().cpu().numpy()
+beta = bn.bias.detach().cpu().numpy()
+mean = bn.running_mean.detach().cpu().numpy()
+var = bn.running_var.detach().cpu().numpy()
+eps = bn.eps
+
+correction = (-beta / (gamma + 1e-5)) * np.sqrt(var + eps)
+adjusted_threshold = (
+    raw_threshold.numpy() + correction
+)
+
+thresholds = np.clip(np.round(adjusted_threshold), 0, 784).astype(np.int32)
+threshold_tensor = torch.tensor(thresholds, dtype=torch.int32, device=device)
+
+verilog_model = VerilogBNN(fc1_w_bin, fc2_w_bin, threshold_tensor).to(device)
 test_verilog_style(verilog_model)
 
 
-# ------------------------------
-# ✅ Save Results
-# ------------------------------
+###############
+# Save Result #
+###############
 def save_binary_weights(weight_tensor, filename):
     weight_np = weight_tensor.cpu().numpy()
     bin_weight = (weight_np > 0).astype(np.uint8)
     with open(filename, "w") as f:
         for row in bin_weight:
             f.write("".join(str(b) for b in row) + "\n")
-
-
-# fc1_weight_bin: shape [256, 784]
-# pc_all: shape [10000, 256]
-pc_all = []
-
-with torch.no_grad():
-    for images, _ in test_loader:
-        x = images.view(images.size(0), -1).to(device)
-        x_bin = (x >= 0).int()  # [B, 784]
-        xnor = 1 - (x_bin.unsqueeze(1) ^ fc1_w_bin.unsqueeze(0))  # [B, 256, 784]
-        pc = xnor.sum(dim=2)  # [B, 256]
-        pc_all.append(pc)
-
-pc_all = torch.cat(pc_all, dim=0)  # [10000, 256]
-
-# Step 1: median-based threshold (before BN correction)
-raw_thresholds = pc_all.median(dim=0).values.float()  # float for computation
-
-# Step 2: BatchNorm correction
-bn = model.bn1
-gamma = bn.weight.detach().cpu().numpy()  # shape: [256]
-beta = bn.bias.detach().cpu().numpy()  # shape: [256]
-mean = bn.running_mean.detach().cpu().numpy()
-var = bn.running_var.detach().cpu().numpy()
-eps = bn.eps
-
-correction = (-beta / (gamma + 1e-5)) * np.sqrt(var + eps)
-adjusted_thresholds = (
-    raw_thresholds.numpy() + correction
-)  # + because we subtract negative shift
-
-# Step 3: Clamp and convert to int
-thresholds = np.clip(np.round(adjusted_thresholds), 0, 784).astype(np.int32)
-thresholds_tensor = torch.tensor(thresholds, dtype=torch.int32, device=device)
-
-
-verilog_model = VerilogCompatibleBNN(fc1_w_bin, fc2_w_bin, thresholds_tensor).to(device)
-test_verilog_style(verilog_model)
 
 with open("fc1_threshold_bin.txt", "w") as f:
     for i, t in enumerate(thresholds):
@@ -318,12 +314,15 @@ save_binary_weights(model.fc1.weight.data.clone().cpu(), "fc1_weight_bin.txt")
 save_binary_weights(model.fc2.weight.data.clone().cpu(), "fc2_weight_bin.txt")
 
 
+##############
+# Plot Graph #
+##############
 plt.figure(figsize=(12, 5))
 
 # Loss
 plt.subplot(1, 2, 1)
 plt.plot(train_losses, label="Train Loss")
-plt.plot(val_losses, label="Validation Loss")
+plt.plot(test_losses, label="Validation Loss")
 plt.xlabel("Epoch")
 plt.ylabel("Loss")
 plt.legend()
@@ -332,7 +331,7 @@ plt.title("Loss Curve")
 # Accuracy
 plt.subplot(1, 2, 2)
 plt.plot(train_accuracies, label="Train Accuracy")
-plt.plot(val_accuracies, label="Validation Accuracy")
+plt.plot(test_accuracies, label="Validation Accuracy")
 plt.xlabel("Epoch")
 plt.ylabel("Accuracy (%)")
 plt.legend()
