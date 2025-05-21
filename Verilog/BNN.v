@@ -4,12 +4,16 @@ module BNN (
     input wire rst_n,
     input wire i_valid,
     input wire [783:0] i_data,
-    input wire [784 * 256 - 1:0] i_weight_fc1,
-    input wire [256 * 10 - 1:0] i_weight_fc2,
-    input wire [10 * 256 - 1:0] i_threshold,
     output reg [3:0] o_result,
     output reg o_valid
 );
+
+    reg [783:0] weight_fc1 [0:255];
+    reg [255:0] weight_fc2 [0:9];
+    reg [9:0] threshold [0:255];
+    initial $readmemb("Verilog/data/fc1_weight_bin.txt", weight_fc1);
+    initial $readmemb("Verilog/data/fc2_weight_bin.txt", weight_fc2);
+    initial $readmemb("Verilog/data/fc1_threshold_bin.txt", threshold);
 
     // Pipeline register stage 0: Input latch
     reg [783:0] r_i_data;
@@ -37,8 +41,8 @@ module BNN (
                 .rst_n(rst_n),
                 .i_valid(r_i_valid),
                 .i_data(r_i_data),
-                .i_weight(i_weight_fc1[784*k +: 784]),
-                .i_threshold(i_threshold[10*k +: 10]),
+                .i_weight(weight_fc1[k]),
+                .i_threshold(threshold[k]),
                 .o_result(fc1_result[255-k]),
                 .o_valid(fc1_valid[k])
             );
@@ -62,7 +66,7 @@ module BNN (
                 .rst_n(rst_n),
                 .i_valid(fc1_ready),
                 .i_data(fc1_result),
-                .i_weight(i_weight_fc2[256*k +: 256]),
+                .i_weight(weight_fc2[k]),
                 .o_result(fc2_result[10*k +: 10]),
                 .o_valid(fc2_valid[k])
             );

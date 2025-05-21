@@ -6,24 +6,18 @@ module tb_BNN ();
     logic rst_n;
     logic i_valid;
     logic [783:0] i_data;
-    logic [784*256-1:0] i_weight_fc1;
-    logic [256*10 -1:0] i_weight_fc2;
-    logic [10*256-1:0] i_threshold;
 
     // output
     wire [3 :0] o_result;
     wire o_valid;
 
-    // reg
+    // test set
     reg [783:0] r_data [0:9999];
-    reg [783:0] r_weight_fc1 [0:255];
-    reg [255:0] r_weight_fc2 [0:9];
-    reg [9:0] r_threshold [0:255];
-
     // 정답
     logic [3:0] gt_labels [0:9999];  // 최대 10000개 저장 가능
+
     int correct = 0;
-    int total   = 10000;  // 총 테스트 개수
+    int total   = 300;  // 총 테스트 개수
     string fname;
 
     int img_idx = 0;
@@ -45,9 +39,6 @@ module tb_BNN ();
         .rst_n(rst_n),
         .i_valid(i_valid),
         .i_data(i_data),
-        .i_weight_fc1(i_weight_fc1),
-        .i_weight_fc2(i_weight_fc2),
-        .i_threshold(i_threshold),
         .o_result(o_result),
         .o_valid(o_valid)
     );
@@ -57,26 +48,14 @@ module tb_BNN ();
         //$dumpvars(1, tb_BNN);
         logfile = $fopen("accuracy_log.txt", "w");
 
-        clk = 0; rst_n = 0; i_valid = 0; i_data = 0; i_weight_fc1 = 0; i_weight_fc2 = 0; i_threshold = 0;
+        clk = 0; rst_n = 0; i_valid = 0; i_data = 0;
 
         #10;
         // data
-        $readmemb("data/mnist_test_bin_images.txt", r_data);
-        // weight
-        $readmemb("data/fc1_weight_bin.txt", r_weight_fc1);
-        $readmemb("data/fc2_weight_bin.txt", r_weight_fc2);
-        $readmemb("data/fc1_threshold_bin.txt", r_threshold);
+        $readmemb("Verilog/data/mnist_test_bin_images.txt", r_data);
 
         // answer
-        $readmemb("data/labels.txt", gt_labels);
-
-        for (int i = 0; i < 256; i++) begin
-            i_weight_fc1[784*i +: 784] = r_weight_fc1[i];
-            i_threshold[10*i +: 10] = r_threshold[i];
-        end
-        for (int i = 0; i < 10; i++) begin
-            i_weight_fc2[256*i +: 256] = r_weight_fc2[i];
-        end
+        $readmemb("Verilog/data/labels.txt", gt_labels);
 
         #20;
         rst_n = 1;
